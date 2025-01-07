@@ -28,7 +28,6 @@ NOT_ACTIVE_STR = '-- Recording not active --'
 # TBD When we get to the point of trying to tune:
 # https://en.wikipedia.org/wiki/Piano_key_frequencies
 # https://stackoverflow.com/questions/64505024/turning-frequencies-into-notes-in-python
-# TBD Need to resolve the no channels available on the output device error
 # TBD Need to figure out why the program stops when start is called a second time
 # TBD it might be useful at some point to see get_input_latency() and get_output_latency()
 
@@ -62,10 +61,10 @@ class AudioApp(QWidget):
             self.recordingBuffer.append(sample)
 
         # Convert audio data back to bytes
-        #data = audio_data.tobytes()
+        data = audio_data.tobytes()
 
         # Write audio data to output stream
-        #self.outputStream.write(data)
+        self.outputStream.write(data)
 
         # Return the audio data and the flag indicating that the callback was successful
         return (in_data, pyaudio.paContinue)
@@ -174,15 +173,6 @@ class AudioApp(QWidget):
         selected_sampling_rate = int(self.samplingRate.currentText())
         selected_frames_per_buffer = int(self.framesPerBuffer.currentText())
 
-        # Open input stream for recording
-        self.inputStream = pa.open(format=AUDIO_FORMAT,
-                            channels=NUM_CHANNELS,
-                            rate=selected_sampling_rate,
-                            input=True,
-                            frames_per_buffer=selected_frames_per_buffer,
-                            input_device_index=selected_input_idx,
-                            stream_callback=self.streamCallback)
-
         # Open output stream for playback
         self.outputStream = pa.open(format=AUDIO_FORMAT,
                             channels=NUM_CHANNELS,
@@ -190,6 +180,16 @@ class AudioApp(QWidget):
                             output=True,
                             frames_per_buffer=selected_frames_per_buffer,
                             output_device_index=selected_output_idx)
+
+        # Open input stream for recording
+        # TBD This function might be blocking
+        self.inputStream = pa.open(format=AUDIO_FORMAT,
+                            channels=NUM_CHANNELS,
+                            rate=selected_sampling_rate,
+                            input=True,
+                            frames_per_buffer=selected_frames_per_buffer,
+                            input_device_index=selected_input_idx,
+                            stream_callback=self.streamCallback)
 
     def stopRecording(self):
         '''

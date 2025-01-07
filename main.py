@@ -42,6 +42,9 @@ class AudioApp(QWidget):
 
         self.initUI()
 
+    def __del__(self):
+        pa.terminate()
+
     def streamCallback(self, in_data, frame_count, time_info, status):
         '''
         Callback function that is called by the PyAudio object when audio data is
@@ -174,22 +177,29 @@ class AudioApp(QWidget):
         selected_frames_per_buffer = int(self.framesPerBuffer.currentText())
 
         # Open output stream for playback
-        self.outputStream = pa.open(format=AUDIO_FORMAT,
-                            channels=NUM_CHANNELS,
-                            rate=selected_sampling_rate,
-                            output=True,
-                            frames_per_buffer=selected_frames_per_buffer,
-                            output_device_index=selected_output_idx)
+        try:
+            self.outputStream = pa.open(format=AUDIO_FORMAT,
+                                channels=NUM_CHANNELS,
+                                rate=selected_sampling_rate,
+                                output=True,
+                                frames_per_buffer=selected_frames_per_buffer,
+                                output_device_index=selected_output_idx)
+        except OSError as e:
+            self.textDisplay.setText(f'Error opening output stream: {e}')
+            return
 
         # Open input stream for recording
-        # TBD This function might be blocking
-        self.inputStream = pa.open(format=AUDIO_FORMAT,
-                            channels=NUM_CHANNELS,
-                            rate=selected_sampling_rate,
-                            input=True,
-                            frames_per_buffer=selected_frames_per_buffer,
-                            input_device_index=selected_input_idx,
-                            stream_callback=self.streamCallback)
+        try:
+            self.inputStream = pa.open(format=AUDIO_FORMAT,
+                                channels=NUM_CHANNELS,
+                                rate=selected_sampling_rate,
+                                input=True,
+                                frames_per_buffer=selected_frames_per_buffer,
+                                input_device_index=selected_input_idx,
+                                stream_callback=self.streamCallback)
+        except OSError as e:
+            self.textDisplay.setText(f'Error opening input stream: {e}')
+            return
 
     def stopRecording(self):
         '''
@@ -198,17 +208,20 @@ class AudioApp(QWidget):
         self.textDisplay.setText(NOT_ACTIVE_STR)
 
         # Close streams and terminate PyAudio
-        self.inputStream.stop_stream()
-        self.inputStream.close()
-        self.outputStream.stop_stream()
-        self.outputStream.close()
-        pa.terminate()
+        if hasattr(self, 'inputStream'): 
+            self.inputStream.stop_stream()
+            self.inputStream.close()
 
-        # Plot the recorded audio data
-        plt.plot(self.recordingBuffer)
-        plt.xlabel('Sample')
-        plt.ylabel('Amplitude (16-bit)')
-        plt.show()
+        if hasattr(self, 'outputStream'):
+            self.outputStream.stop_stream()
+            self.outputStream.close()
+
+        # Plot the recorded audio data if it exists
+        if len(self.recordingBuffer) > 0:
+            plt.plot(self.recordingBuffer)
+            plt.xlabel('Sample')
+            plt.ylabel('Amplitude (16-bit)')
+            plt.show()
 
 
 if __name__ == '__main__':

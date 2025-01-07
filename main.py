@@ -3,7 +3,7 @@ import numpy as np
 import pyaudio
 
 # Initialize PyAudio
-p = pyaudio.PyAudio()
+pa = pyaudio.PyAudio()
 
 ### Define audio parameters
 # Get the data as 16-bit signed integers
@@ -31,17 +31,48 @@ FRAMES_PER_BUFFER = 1024
 # TBD get_default_input_device_info() and get_default_output_device_info() might be useful
 #       Looks like they reutrn a dictionary
 # TBD it might be useful at some point to see get_input_latency() and get_output_latency()
+# TBD When we get to the point of trying to tune:
+# https://en.wikipedia.org/wiki/Piano_key_frequencies
+# https://stackoverflow.com/questions/64505024/turning-frequencies-into-notes-in-python
 
+
+# Get list of input devices and print them
+input_devices = []
+for i in range(pa.get_device_count()):
+    device_info = pa.get_device_info_by_index(i)
+    if device_info['maxInputChannels'] > 0:
+        input_devices.append(device_info['name'])
+
+print("Input devices:")
+for i, device in enumerate(input_devices):
+    print(f"{i}: {device}")
+
+print(pa.get_default_input_device_info())
+
+# Get list of output devices and print them
+output_devices = []
+for i in range(pa.get_device_count()):
+    device_info = pa.get_device_info_by_index(i)
+    if device_info['maxOutputChannels'] > 0:
+        output_devices.append(device_info['name'])
+
+print("Output devices:")
+for i, device in enumerate(output_devices):
+    print(f"{i}: {device}")
+
+print(pa.get_default_output_device_info())
+
+exit()
 
 # Open input stream for recording
-input_stream = p.open(format=AUDIO_FORMAT,
+input_stream = pa.open(format=AUDIO_FORMAT,
                       channels=NUM_CHANNELS,
                       rate=SAMPLING_RATE_HZ,
                       input=True,
                       frames_per_buffer=FRAMES_PER_BUFFER)
 
 # Open output stream for playback
-output_stream = p.open(format=AUDIO_FORMAT,
+output_stream = pa.open(format=AUDIO_FORMAT,
                        channels=NUM_CHANNELS,
                        rate=SAMPLING_RATE_HZ,
                        output=True,
@@ -83,7 +114,7 @@ input_stream.stop_stream()
 input_stream.close()
 output_stream.stop_stream()
 output_stream.close()
-p.terminate()
+pa.terminate()
 
 # Plot the recorded audio data
 plt.plot(full_recording)

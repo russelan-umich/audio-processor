@@ -115,8 +115,6 @@ class AudioApp(QWidget):
 
         # Get the pitch of the audio data
         pitch = self.pitchDetector(audio_data)[0]
-        confidence = self.pitchDetector.get_confidence()
-
         note_name, offset = freqToNote(pitch)
         offset_str = createPitchOffsetStr(note_name, offset)
 
@@ -203,6 +201,11 @@ class AudioApp(QWidget):
         hbox_button_row.addWidget(start_button)
         hbox_button_row.addWidget(stop_button)
         hbox_button_row.addWidget(refresh_button)
+
+        # Add a selector for which effect to apply
+        self.appliedEffect = self.addComboBoxToHBox(hbox_button_row, \
+            'Effect:', ['None', 'Reverb', 'Crunch'], default_index=0)
+        
         
         vbox.addLayout(hbox_button_row)
 

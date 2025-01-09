@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from collections import deque
 import numpy as np
 import pyaudio
+import aubio
 import sys
 
 # Initialize PyAudio
@@ -11,7 +12,7 @@ pa = pyaudio.PyAudio()
 
 ### Define global audio parameters
 # Get the data as 16-bit signed integers
-AUDIO_FORMAT = pyaudio.paInt16
+AUDIO_FORMAT = pyaudio.paFloat32
 # Use only one channel
 NUM_CHANNELS = 1
 
@@ -25,11 +26,12 @@ NOT_ACTIVE_STR = '-- Recording not active --'
 # If samples stayed continually at 2,000 (for example) the speaker would be
 # would be silent since it is not moving in or out.
 
+# TBD Setup refresh button for audio devices
 # TBD When we get to the point of trying to tune:
 # https://en.wikipedia.org/wiki/Piano_key_frequencies
 # https://stackoverflow.com/questions/64505024/turning-frequencies-into-notes-in-python
 # TBD Need to figure out why the program stops when start is called a second time
-# TBD it might be useful at some point to see get_input_latency() and get_output_latency()
+# TBD It might be useful at some point to see get_input_latency() and get_output_latency()
 
 
 class AudioApp(QWidget):
@@ -57,11 +59,16 @@ class AudioApp(QWidget):
             return (in_data, pyaudio.paAbort)
         
         # Convert audio data to numpy array
-        audio_data = np.frombuffer(in_data, dtype=np.int16)
+        audio_data = np.frombuffer(in_data, dtype=np.float32)
 
         # Append audio data to the rolling buffer
         for sample in audio_data:
             self.recordingBuffer.append(sample)
+
+        # Get the pitch of the audio data
+        pitch = self.pitchDetector(audio_data)[0]
+        confidence = self.pitchDetector.get_confidence()
+        self.textDisplay.setText(f'Pitch: {pitch:.2f} Hz, Confidence: {confidence:.2f}')
 
         # Convert audio data back to bytes
         data = audio_data.tobytes()
@@ -139,7 +146,7 @@ class AudioApp(QWidget):
         # 4. Frames Per Buffer
         # Number of frames captured every time the i/o stream are read/written
         self.framesPerBuffer = self.addComboBoxToHBox(hbox_top, \
-            'Frames Per Buffer:', ['1024', '2048', '4096'], default_index=0)
+            'Frames Per Buffer:', ['1024', '2048', '4096'], default_index=1)
 
         vbox.addLayout(hbox_top)
 
@@ -200,6 +207,22 @@ class AudioApp(QWidget):
         except OSError as e:
             self.textDisplay.setText(f'Error opening input stream: {e}')
             return
+        
+        # Create aubio pitch detection object
+        try:
+            # Create a buffer that is 8 times as large as each frame that is 
+            # read. This is the maximum size that aubio will accept. It creates
+            # the smoothest pitch detection.
+            buffer_size = selected_frames_per_buffer * 8
+            self.pitchDetector = aubio.pitch('default', \
+                buffer_size, selected_frames_per_buffer,
+                selected_sampling_rate)
+            self.pitchDetector.set_unit('Hz')
+            self.pitchDetector.set_silence(-40)
+        except Exception as e:
+            print(f'Error creating pitch detector: {e}')
+            self.textDisplay.setText(f'Error creating pitch detector: {e}')
+            return
 
     def stopRecording(self):
         '''
@@ -216,8 +239,8 @@ class AudioApp(QWidget):
             self.outputStream.stop_stream()
             self.outputStream.close()
 
-        # Plot the recorded audio data if it exists
         if len(self.recordingBuffer) > 0:
+            # Create plot of the data
             plt.plot(self.recordingBuffer)
             plt.xlabel('Sample')
             plt.ylabel('Amplitude (16-bit)')

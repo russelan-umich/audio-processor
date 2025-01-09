@@ -83,17 +83,17 @@ class AudioApp(QWidget):
         #
         hbox_button_row = QHBoxLayout()
 
-        start_button = QPushButton('Start')
-        stop_button = QPushButton('Stop')
-        refresh_button = QPushButton('Refresh Devices')
+        self.startButton = QPushButton('Start')
+        self.stopButton = QPushButton('Stop')
+        self.refreshButton = QPushButton('Refresh Devices')
 
-        start_button.clicked.connect(self.startRecording)
-        stop_button.clicked.connect(self.stopRecording)
-        refresh_button.clicked.connect(self.refreshDevices)
+        self.startButton.clicked.connect(self.startRecording)
+        self.stopButton.clicked.connect(self.stopRecording)
+        self.refreshButton.clicked.connect(self.refreshDevices)
 
-        hbox_button_row.addWidget(start_button)
-        hbox_button_row.addWidget(stop_button)
-        hbox_button_row.addWidget(refresh_button)
+        hbox_button_row.addWidget(self.startButton)
+        hbox_button_row.addWidget(self.stopButton)
+        hbox_button_row.addWidget(self.refreshButton)
 
         # Add a selector for which effect to apply
         self.appliedEffect = self.addComboBoxToHBox(hbox_button_row, \
@@ -141,11 +141,12 @@ class AudioApp(QWidget):
                 selected_output_idx, selected_sampling_rate, \
                 selected_frames_per_buffer, self.streamCallback)
             
-        if not worked:
+        if worked:
+            self.inRecordingMode(True)
+        else:
             self.textDisplay.setText(err_str)
 
-        # TBD make it so that the user can't start recording again until they stop
-        # recording and can't reload the devices until they stop recording
+            
 
     def stopRecording(self):
         '''
@@ -153,6 +154,18 @@ class AudioApp(QWidget):
         '''
         self.textDisplay.setText(NOT_ACTIVE_STR)
         self.audioIO.stopStreams()
+        self.inRecordingMode(False)
+
+    def inRecordingMode(self, recording: bool):
+        '''
+        Set the GUI to be in recording mode or not
+        '''
+        self.inputComboBox.setDisabled(recording)
+        self.outputComboBox.setDisabled(recording)
+        self.samplingRate.setDisabled(recording)
+        self.framesPerBuffer.setDisabled(recording)
+        self.startButton.setDisabled(recording)
+        self.refreshButton.setDisabled(recording)
 
     def refreshDevices(self):
         '''

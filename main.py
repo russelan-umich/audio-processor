@@ -26,7 +26,6 @@ NOT_ACTIVE_STR = '-- Recording not active --'
 # If samples stayed continually at 2,000 (for example) the speaker would be
 # would be silent since it is not moving in or out.
 
-# TBD Setup refresh button for audio devices
 # TBD Need to figure out why the program stops when start is called a second time
 # TBD It might be useful at some point to see get_input_latency() and get_output_latency()
 
@@ -71,6 +70,27 @@ def freqToNote(freqHz: float) -> tuple[str, float]:
     
     return full_note, diff
 
+def createPitchOffsetStr(noteName, offset):
+    '''
+    Create a string that will indicate whether the user need to go more flat or
+    sharp on the current pitch that is playing. The returned string is always
+    the same length, space padded if necessary.
+    '''
+    # Round the offset to a value between -5 and 5
+    rounded_offset = round(offset * 10)
+    char_to_use = ">" if rounded_offset < 0 else "<"
+    num_chars = abs(rounded_offset)
+    max_chars = 5
+    if num_chars > max_chars:
+        num_chars = max_chars   
+    
+    offset_str = char_to_use * num_chars
+
+    if rounded_offset < 0:
+        return f'{offset_str:>{max_chars}}{noteName}{" " * max_chars}'
+    else:
+        return f'{" " * max_chars}{noteName}{offset_str:<{max_chars}}'
+
 class AudioApp(QWidget):
     def __init__(self):
         super().__init__()
@@ -98,8 +118,9 @@ class AudioApp(QWidget):
         confidence = self.pitchDetector.get_confidence()
 
         note_name, offset = freqToNote(pitch)
-        self.textDisplay.setText(f'Pitch: {pitch:.2f} Hz, Confidence: '\
-            f'{confidence:.2f}\nNote: {note_name}, Offset: {offset:.2f}')
+        offset_str = createPitchOffsetStr(note_name, offset)
+
+        self.textDisplay.setText(offset_str)
 
         # Convert audio data back to bytes
         data = audio_data.tobytes()
@@ -204,8 +225,6 @@ class AudioApp(QWidget):
         '''
         Start the recording and playback process
         '''
-        self.textDisplay.setText("Recording and playing back...")
-
         # Get the currently selected options
         selected_input_idx = self.inputComboBox.currentIndex()
         selected_output_idx = self.outputComboBox.currentIndex()

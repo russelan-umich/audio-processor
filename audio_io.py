@@ -5,12 +5,21 @@ import numpy as np
 import pyaudio
 import aubio
 import math
+import os
 
 ### Define global audio parameters
 # Get the data as signed 32 bit floats
 AUDIO_FORMAT = pyaudio.paFloat32
 # Use only one channel
 NUM_CHANNELS = 1
+
+# Create an enumeration for the audio effects where each value corresponds to a string
+class AudioEffect:
+    NO_EFFECT = 'No Effect'
+    REVERSE = 'Reverse'
+    PITCH_SHIFT = 'Pitch Shift - TBD'
+    REVERB = 'Reverb - TBD'
+    CRUNCH = 'Crunch - TBD'
 
 # Sample meaning:
 # Each sample is a 16-bit signed integer, that tells the speaker how far to move
@@ -91,8 +100,31 @@ class AudioIO():
         self.pa.terminate()
 
     def cyclePyAudioSessions(self):
+        '''
+        Terminate the PyAudio session and restart it. This allows us to refresh
+        the list of input and output devices.
+        '''
         self.pa.terminate()
         self.pa = pyaudio.PyAudio()
+
+    def getAudioEffects(self) -> list[str]:
+        '''
+        Get the list of audio effects
+
+        Returns:
+            A list of audio effects
+        '''
+        return_list = []
+        for effect in AudioEffect.__dict__.values():
+            if isinstance(effect, str):
+
+                # The name of the file is included in the list of effects so 
+                # we need to skip it
+                filename = os.path.basename(__file__)
+                if effect not in filename:
+                    return_list.append(effect)
+                    
+        return return_list
 
     def startStreams(self, inputDeviceIdx, OutputDeviceIdx, samplingRateHz,\
                     framesPerBuffer, streamCallback) -> tuple[bool, str]:
@@ -159,7 +191,7 @@ class AudioIO():
             self.outputStream.stop_stream()
             self.outputStream.close()
 
-    def streamCallback(self, in_data, frame_count, time_info, status):
+    def streamCallback(self, inData, frameCount, timeInfo, status, effectStr):
         '''
         Callback function that is called by the PyAudio object when audio data is
         available to be processed. This function is called in a separate thread.
@@ -168,15 +200,21 @@ class AudioIO():
         # Break out of any error condions
         if status != 0:
             print(f'Error: {status}')
-            return (in_data, pyaudio.paAbort)
+            return (inData, pyaudio.paAbort)
         
         # Convert audio data to numpy array
-        audio_data = np.frombuffer(in_data, dtype=np.float32)
+        audio_data = np.frombuffer(inData, dtype=np.float32)
 
         # Get the pitch of the audio data
         pitch = self.pitchDetector(audio_data)[0]
         note_name, offset = freqToNote(pitch)
         offset_str = createPitchOffsetStr(note_name, offset)
+
+        # Apply the audio effect
+        if effectStr == AudioEffect.REVERSE:
+            audio_data = audio_data[::-1]
+        else:
+            pass
 
         # Convert audio data back to bytes
         data = audio_data.tobytes()
@@ -185,7 +223,7 @@ class AudioIO():
         self.outputStream.write(data)
 
         # Return the audio data and the flag indicating that the callback was successful
-        return (offset_str, in_data, pyaudio.paContinue)
+        return (offset_str, inData, pyaudio.paContinue)
 
 
     def getInputDevices(self) -> tuple[list[str], int]:

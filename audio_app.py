@@ -73,7 +73,7 @@ class AudioApp(QWidget):
         # 4. Frames Per Buffer
         # Number of frames captured every time the i/o stream are read/written
         self.framesPerBuffer = self.addComboBoxToHBox(hbox_top, \
-            'Frames Per Buffer:', ['1024', '2048', '4096'], default_index=1)
+            'Frames Per Buffer:', ['1024', '2048', '4096', '8192', '16384'], default_index=1)
 
         vbox.addLayout(hbox_top)
 
@@ -96,8 +96,9 @@ class AudioApp(QWidget):
         hbox_button_row.addWidget(self.refreshButton)
 
         # Add a selector for which effect to apply
+        audio_effects = self.audioIO.getAudioEffects()
         self.appliedEffect = self.addComboBoxToHBox(hbox_button_row, \
-            'Effect:', ['None', 'Reverb', 'Crunch'], default_index=0)
+            'Effect:', audio_effects, default_index=0)
         
         vbox.addLayout(hbox_button_row)
 
@@ -122,7 +123,8 @@ class AudioApp(QWidget):
         available to be processed. This function is called in a separate thread.
         '''
         offset_str, in_data, status = \
-            self.audioIO.streamCallback(in_data, frame_count, time_info, status)
+            self.audioIO.streamCallback(in_data, frame_count, time_info, status, 
+                                        self.appliedEffect.currentText())
         
         self.textDisplay.setText(offset_str)
         return (in_data, status)

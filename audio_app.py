@@ -1,0 +1,173 @@
+'''
+GUI application that allows the user to select an input and output device, and
+then start and stop recording audio from the input device.
+'''
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
+from PyQt6.QtWidgets import QLabel, QComboBox, QPushButton
+from PyQt6.QtCore import Qt
+import audio_io as aio
+
+NOT_ACTIVE_STR = '-- Recording not active --'
+
+class AudioApp(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.audioIO = aio.AudioIO()
+        self.initUI()
+
+    def __del__(self):
+        del self.audioIO
+
+    def addComboBoxToHBox(self, hbox: QHBoxLayout, label_text: str, items: list,\
+                          default_index: int) -> QComboBox:
+        '''
+        Add a dropdown menu to the horizontal layout hbox with the given label_text
+        and items. The default_index is the index of the item that should be
+        selected by default.
+        '''
+        label = QLabel(label_text)
+        combo_box = QComboBox()
+        for item in items:
+            combo_box.addItem(item)
+        combo_box.setCurrentIndex(default_index)
+
+        vbox_combo = QVBoxLayout()
+        vbox_combo.addWidget(label)
+        vbox_combo.addWidget(combo_box)
+        hbox.addLayout(vbox_combo)
+
+        return combo_box
+
+
+    def initUI(self):
+        '''
+        Initialize the user interface for the AudioApp
+        '''
+
+        # Create main layout which will be a column of other layouts
+        vbox = QVBoxLayout()
+
+        ### Create horizontal layout for dropdown menus with labels
+        #
+        #
+        hbox_top = QHBoxLayout()
+
+        # 1. Input Devices
+        input_devices, default_input_device_index = self.audioIO.getInputDevices()
+        self.inputComboBox = self.addComboBoxToHBox(hbox_top, \
+            'Input Device:', input_devices, default_input_device_index)
+
+        # 2. Output Devices
+        output_devices, default_output_device_index = self.audioIO.getOutputDevices()
+        self.outputComboBox = self.addComboBoxToHBox(hbox_top, \
+            'Output Device:', output_devices, default_output_device_index)
+
+        # 3. Sampling Rate
+        # Sample at a rate of 44.1 kHz (44100 samples per second)
+        # Standard sampling rate since most humans can hear up to 20 kHz and you 
+        # typically want to sample at twice the highest frequency you want to 
+        # capture.
+        self.samplingRate = self.addComboBoxToHBox(hbox_top, \
+            'Sampling Rate (Hz):', ['44100'], default_index=0)
+
+        # 4. Frames Per Buffer
+        # Number of frames captured every time the i/o stream are read/written
+        self.framesPerBuffer = self.addComboBoxToHBox(hbox_top, \
+            'Frames Per Buffer:', ['1024', '2048', '4096'], default_index=1)
+
+        vbox.addLayout(hbox_top)
+
+
+        ### Create horizontal layout for buttons and text display
+        #
+        #
+        hbox_button_row = QHBoxLayout()
+
+        start_button = QPushButton('Start')
+        stop_button = QPushButton('Stop')
+        refresh_button = QPushButton('Refresh Devices')
+
+        start_button.clicked.connect(self.startRecording)
+        stop_button.clicked.connect(self.stopRecording)
+        refresh_button.clicked.connect(self.refreshDevices)
+
+        hbox_button_row.addWidget(start_button)
+        hbox_button_row.addWidget(stop_button)
+        hbox_button_row.addWidget(refresh_button)
+
+        # Add a selector for which effect to apply
+        self.appliedEffect = self.addComboBoxToHBox(hbox_button_row, \
+            'Effect:', ['None', 'Reverb', 'Crunch'], default_index=0)
+        
+        vbox.addLayout(hbox_button_row)
+
+
+        ### Create the horizontal layout for the text display
+        #
+        #
+        hbox_bottom = QHBoxLayout()
+        self.textDisplay = QLabel(NOT_ACTIVE_STR)
+        self.textDisplay.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hbox_bottom.addWidget(self.textDisplay)
+        vbox.addLayout(hbox_bottom)
+
+        self.setLayout(vbox)
+
+        self.setWindowTitle('Audio Processor')
+        self.setGeometry(100, 100, 800, 400)  # Set the window dimensions
+
+    def streamCallback(self, in_data, frame_count, time_info, status):
+        '''
+        Callback function that is called by the PyAudio object when audio data is
+        available to be processed. This function is called in a separate thread.
+        '''
+        offset_str, in_data, status = \
+            self.audioIO.streamCallback(in_data, frame_count, time_info, status)
+        
+        self.textDisplay.setText(offset_str)
+        return (in_data, status)
+
+    def startRecording(self):
+        '''
+        Start the recording and playback process
+        '''
+        # Get the currently selected options
+        selected_input_idx = self.inputComboBox.currentIndex()
+        selected_output_idx = self.outputComboBox.currentIndex()
+        selected_sampling_rate = int(self.samplingRate.currentText())
+        selected_frames_per_buffer = int(self.framesPerBuffer.currentText())
+
+        worked, err_str = self.audioIO.startStreams(selected_input_idx, \
+                selected_output_idx, selected_sampling_rate, \
+                selected_frames_per_buffer, self.streamCallback)
+            
+        if not worked:
+            self.textDisplay.setText(err_str)
+
+        # TBD make it so that the user can't start recording again until they stop
+        # recording and can't reload the devices until they stop recording
+
+    def stopRecording(self):
+        '''
+        Stop the recording and playback process
+        '''
+        self.textDisplay.setText(NOT_ACTIVE_STR)
+        self.audioIO.stopStreams()
+
+    def refreshDevices(self):
+        '''
+        Refresh the list of input and output devices
+        '''
+        self.audioIO.cyclePyAudioSessions()
+
+        input_devices, default_input_device_index = self.audioIO.getInputDevices()
+        self.inputComboBox.clear()
+        for item in input_devices:
+            self.inputComboBox.addItem(item)
+        self.inputComboBox.setCurrentIndex(default_input_device_index)
+
+        output_devices, default_output_device_index = self.audioIO.getOutputDevices()
+        self.outputComboBox.clear()
+        for item in output_devices:
+            self.outputComboBox.addItem(item)
+        self.outputComboBox.setCurrentIndex(default_output_device_index)

@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout
 from PyQt6.QtWidgets import QLabel, QComboBox, QPushButton
-import matplotlib.pyplot as plt
+from PyQt6.QtCore import Qt
 import numpy as np
 import pyaudio
 import aubio
@@ -27,8 +27,6 @@ NOT_ACTIVE_STR = '-- Recording not active --'
 # would be silent since it is not moving in or out.
 
 # TBD Setup refresh button for audio devices
-# TBD When we get to the point of trying to tune:
-
 # TBD Need to figure out why the program stops when start is called a second time
 # TBD It might be useful at some point to see get_input_latency() and get_output_latency()
 
@@ -137,34 +135,18 @@ class AudioApp(QWidget):
         # Create main layout
         vbox = QVBoxLayout()
 
-        # Create horizontal layout for dropdown menus with labels
+        ### Create horizontal layout for dropdown menus with labels
+        #
+        #
         hbox_top = QHBoxLayout()
 
         # 1. Input Devices
-        input_devices = []
-        for i in range(pa.get_device_count()):
-            device_info = pa.get_device_info_by_index(i)
-            if device_info['maxInputChannels'] > 0:
-                input_devices.append(device_info['name'])
-        try:
-            default_input_device = pa.get_default_input_device_info()
-            default_input_device_index = default_input_device['index']
-        except:
-            default_input_device_index = 0
+        input_devices, default_input_device_index = self.getInputDevices()
         self.inputComboBox = self.addComboBoxToHBox(hbox_top, \
             'Input Device:', input_devices, default_input_device_index)
 
         # 2. Output Devices
-        output_devices = []
-        for i in range(pa.get_device_count()):
-            device_info = pa.get_device_info_by_index(i)
-            if device_info['maxOutputChannels'] > 0:
-                output_devices.append(device_info['name'])
-        try:
-            default_output_device = pa.get_default_output_device_info()
-            default_output_device_index = default_output_device['index']
-        except:
-            default_output_device_index = 0
+        output_devices, default_output_device_index = self.getOutputDevices()
         self.outputComboBox = self.addComboBoxToHBox(hbox_top, \
             'Output Device:', output_devices, default_output_device_index)
 
@@ -183,20 +165,34 @@ class AudioApp(QWidget):
 
         vbox.addLayout(hbox_top)
 
-        # Create horizontal layout for buttons and text display
-        hbox_bottom = QHBoxLayout()
+
+        ### Create horizontal layout for buttons and text display
+        #
+        #
+        hbox_button_row = QHBoxLayout()
 
         start_button = QPushButton('Start')
         stop_button = QPushButton('Stop')
-        self.textDisplay = QLabel(NOT_ACTIVE_STR)
+        refresh_button = QPushButton('Refresh Devices')
 
         start_button.clicked.connect(self.startRecording)
         stop_button.clicked.connect(self.stopRecording)
+        refresh_button.clicked.connect(self.refreshDevices)
 
-        hbox_bottom.addWidget(start_button)
-        hbox_bottom.addWidget(stop_button)
+        hbox_button_row.addWidget(start_button)
+        hbox_button_row.addWidget(stop_button)
+        hbox_button_row.addWidget(refresh_button)
+        
+        vbox.addLayout(hbox_button_row)
+
+
+        ### Create the horizontal layout for the text display
+        #
+        #
+        hbox_bottom = QHBoxLayout()
+        self.textDisplay = QLabel(NOT_ACTIVE_STR)
+        self.textDisplay.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hbox_bottom.addWidget(self.textDisplay)
-
         vbox.addLayout(hbox_bottom)
 
         self.setLayout(vbox)
@@ -271,6 +267,46 @@ class AudioApp(QWidget):
         if hasattr(self, 'outputStream'):
             self.outputStream.stop_stream()
             self.outputStream.close()
+
+    def refreshDevices(self):
+        input_devices, default_input_device_index = self.getInputDevices()
+        self.inputComboBox.clear()
+        for item in input_devices:
+            self.inputComboBox.addItem(item)
+        self.inputComboBox.setCurrentIndex(default_input_device_index)
+
+        output_devices, default_output_device_index = self.getOutputDevices()
+        self.outputComboBox.clear()
+        for item in output_devices:
+            self.outputComboBox.addItem(item)
+        self.outputComboBox.setCurrentIndex(default_output_device_index)
+
+    def getInputDevices(self) -> tuple[list[str], int]:
+        input_devices = []
+        for i in range(pa.get_device_count()):
+            device_info = pa.get_device_info_by_index(i)
+            if device_info['maxInputChannels'] > 0:
+                input_devices.append(device_info['name'])
+        try:
+            default_input_device = pa.get_default_input_device_info()
+            default_input_device_index = default_input_device['index']
+        except:
+            default_input_device_index = 0
+        return input_devices, default_input_device_index
+    
+    def getOutputDevices(self) -> tuple[list[str], int]:
+        output_devices = []
+        for i in range(pa.get_device_count()):
+            device_info = pa.get_device_info_by_index(i)
+            if device_info['maxOutputChannels'] > 0:
+                output_devices.append(device_info['name'])
+        try:
+            default_output_device = pa.get_default_output_device_info()
+            default_output_device_index = default_output_device['index']
+        except:
+            default_output_device_index = 0
+
+        return output_devices, default_output_device_index
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

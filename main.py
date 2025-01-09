@@ -1,10 +1,10 @@
 from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout
 from PyQt6.QtWidgets import QLabel, QComboBox, QPushButton
 import matplotlib.pyplot as plt
-from collections import deque
 import numpy as np
 import pyaudio
 import aubio
+import math
 import sys
 
 # Initialize PyAudio
@@ -28,20 +28,54 @@ NOT_ACTIVE_STR = '-- Recording not active --'
 
 # TBD Setup refresh button for audio devices
 # TBD When we get to the point of trying to tune:
-# https://en.wikipedia.org/wiki/Piano_key_frequencies
-# https://stackoverflow.com/questions/64505024/turning-frequencies-into-notes-in-python
+
 # TBD Need to figure out why the program stops when start is called a second time
 # TBD It might be useful at some point to see get_input_latency() and get_output_latency()
 
 
+def freqToNote(freqHz: float) -> tuple[str, float]:
+    '''
+    Convert a frequency to a note and let you know how off you are from the note.
+
+    Derived  from:
+    https://en.wikipedia.org/wiki/Piano_key_frequencies
+    https://stackoverflow.com/questions/64505024/turning-frequencies-into-notes-in-python
+
+    Args:
+        freqHz: The frequency in Hz
+
+    Returns:
+        A tuple containing the note and the difference from the note on a 
+        relative scale from -0.5 to 0.5. 
+    '''
+    notes = ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#']
+
+    freq_hz_of_a4 = 440
+    # There are 12 semitones in an each octave (A, A#, ..., G#)
+    num_semitones = 12
+    # A4 is the 1st note of fifth octave (they start counting octaves from 0)
+    note_num_of_a4 = 49
+   
+    # Make sure freqHz is valid before running
+    if freqHz <= 0:
+        return 'Invalid', 0
+    note_number = num_semitones * math.log2(freqHz / freq_hz_of_a4) + note_num_of_a4  
+
+    # Figure out which note and octave we are closest to 
+    rounded_note_number = round(note_number)    
+    note = (rounded_note_number - 1 ) % len(notes)
+    note_name = notes[note]
+    octave = (rounded_note_number + 8 ) // len(notes)
+
+    # Get the return values
+    full_note = f'{note_name}{octave}'
+    diff = note_number - rounded_note_number
+    
+    return full_note, diff
+
 class AudioApp(QWidget):
     def __init__(self):
         super().__init__()
-
-        # TBD this is just for current testing
-        # Save a running 1024 * 1000 buffer of audio data
-        self.recordingBuffer = deque(maxlen=1024*1000)
-
         self.initUI()
 
     def __del__(self):
@@ -61,14 +95,13 @@ class AudioApp(QWidget):
         # Convert audio data to numpy array
         audio_data = np.frombuffer(in_data, dtype=np.float32)
 
-        # Append audio data to the rolling buffer
-        for sample in audio_data:
-            self.recordingBuffer.append(sample)
-
         # Get the pitch of the audio data
         pitch = self.pitchDetector(audio_data)[0]
         confidence = self.pitchDetector.get_confidence()
-        self.textDisplay.setText(f'Pitch: {pitch:.2f} Hz, Confidence: {confidence:.2f}')
+
+        note_name, offset = freqToNote(pitch)
+        self.textDisplay.setText(f'Pitch: {pitch:.2f} Hz, Confidence: '\
+            f'{confidence:.2f}\nNote: {note_name}, Offset: {offset:.2f}')
 
         # Convert audio data back to bytes
         data = audio_data.tobytes()
@@ -238,14 +271,6 @@ class AudioApp(QWidget):
         if hasattr(self, 'outputStream'):
             self.outputStream.stop_stream()
             self.outputStream.close()
-
-        if len(self.recordingBuffer) > 0:
-            # Create plot of the data
-            plt.plot(self.recordingBuffer)
-            plt.xlabel('Sample')
-            plt.ylabel('Amplitude (16-bit)')
-            plt.show()
-
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

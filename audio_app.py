@@ -4,6 +4,7 @@ then start and stop recording audio from the input device.
 '''
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
 from PyQt6.QtWidgets import QLabel, QComboBox, QPushButton
+import matplotlib.pyplot as plt
 from PyQt6.QtCore import Qt
 import audio_io as aio
 
@@ -86,14 +87,17 @@ class AudioApp(QWidget):
         self.startButton = QPushButton('Start')
         self.stopButton = QPushButton('Stop')
         self.refreshButton = QPushButton('Refresh Devices')
+        self.plotButton = QPushButton('Create Plot')
 
         self.startButton.clicked.connect(self.startRecording)
         self.stopButton.clicked.connect(self.stopRecording)
         self.refreshButton.clicked.connect(self.refreshDevices)
+        self.plotButton.clicked.connect(self.createPlot)
 
         hbox_button_row.addWidget(self.startButton)
         hbox_button_row.addWidget(self.stopButton)
         hbox_button_row.addWidget(self.refreshButton)
+        hbox_button_row.addWidget(self.plotButton)
 
         # Add a selector for which effect to apply
         audio_effects = self.audioIO.getAudioEffects()
@@ -186,3 +190,11 @@ class AudioApp(QWidget):
         for item in output_devices:
             self.outputComboBox.addItem(item)
         self.outputComboBox.setCurrentIndex(default_output_device_index)
+
+    def createPlot(self):
+        '''
+        Create a plot of the audio data
+        '''
+        plt.plot(self.audioIO.recentFrameBuffer)
+        plt.xlabel('Frame Number')
+        plt.show()

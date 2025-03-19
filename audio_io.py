@@ -1,6 +1,7 @@
 '''
 Interfaces to PyAudio and Aubio to handle audio input, output, and manipulation.
 '''
+from collections import deque
 import numpy as np
 import pyaudio
 import aubio
@@ -17,7 +18,8 @@ NUM_CHANNELS = 1
 class AudioEffect:
     NO_EFFECT = 'No Effect'
     REVERSE = 'Reverse'
-    PITCH_SHIFT = 'Pitch Shift - TBD'
+    PITCH_SHIFT_UP = 'Pitch Shift Up'
+    PITCH_SHIFT_DOWN = 'Pitch Shift Down'
     REVERB = 'Reverb - TBD'
     CRUNCH = 'Crunch - TBD'
 
@@ -94,6 +96,7 @@ def createPitchOffsetStr(noteName, offset):
 class AudioIO():
     def __init__(self):
         # Initialize PyAudio
+        self.recentFrameBuffer = deque(maxlen=(1024 * 16))
         self.pa = pyaudio.PyAudio()
 
     def __del__(self):
@@ -205,16 +208,32 @@ class AudioIO():
         # Convert audio data to numpy array
         audio_data = np.frombuffer(inData, dtype=np.float32)
 
+        
+        # Apply the audio effect
+        if effectStr == AudioEffect.REVERSE:
+            audio_data = audio_data[::-1]
+        elif effectStr == AudioEffect.PITCH_SHIFT_UP:
+            # First, get an array of every other sample the duplicate the array to 
+            # make it the length of the original audio data
+            every_other_sample = audio_data[::2]
+            audio_data = np.concatenate(
+                (every_other_sample, every_other_sample), axis=0)
+        elif effectStr == AudioEffect.PITCH_SHIFT_DOWN:
+            # Get this first half of the audio data, then duplicate every sample
+            # to make the array the length of the original audio data
+            first_half = audio_data[:len(audio_data) // 2]
+            audio_data = np.concatenate((first_half, first_half), axis=0)
+        else:
+            pass
+
         # Get the pitch of the audio data
+        # TBD - moving the pitch detection to after the effect is applied to
+        #       to see if we are really shifting pitch
         pitch = self.pitchDetector(audio_data)[0]
         note_name, offset = freqToNote(pitch)
         offset_str = createPitchOffsetStr(note_name, offset)
 
-        # Apply the audio effect
-        if effectStr == AudioEffect.REVERSE:
-            audio_data = audio_data[::-1]
-        else:
-            pass
+        self.recentFrameBuffer.extend(audio_data)
 
         # Convert audio data back to bytes
         data = audio_data.tobytes()

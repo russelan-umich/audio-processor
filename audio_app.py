@@ -69,12 +69,12 @@ class AudioApp(QWidget):
         # typically want to sample at twice the highest frequency you want to 
         # capture.
         self.samplingRate = self.addComboBoxToHBox(hbox_top, \
-            'Sampling Rate (Hz):', ['44100'], default_index=0)
+            'Sampling Rate (Hz):', ['22050','44100'], default_index=1)
 
         # 4. Frames Per Buffer
         # Number of frames captured every time the i/o stream are read/written
         self.framesPerBuffer = self.addComboBoxToHBox(hbox_top, \
-            'Frames Per Buffer:', ['1024', '2048', '4096', '8192', '16384'], default_index=1)
+            'Frames Per Buffer:', ['128','256','512','1024', '2048', '4096', '8192', '16384'], default_index=4)
 
         vbox.addLayout(hbox_top)
 

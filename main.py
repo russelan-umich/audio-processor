@@ -6,7 +6,8 @@ from audio_app import AudioApp
 import sys
 
 # TBDS:
-# - Clean up the pitch shift up and down sound
+# - Add volume knob
+# - Get access to sample rate inside audio_io
 # - Use distortion pedal to see what is looks like
 # - It might be useful at some point to see get_input_latency() and 
 # get_output_latency() from PyAudio

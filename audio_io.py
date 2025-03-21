@@ -1,6 +1,7 @@
 '''
 Interfaces to PyAudio and Aubio to handle audio input, output, and manipulation.
 '''
+from scipy.signal import square
 from collections import deque
 import numpy as np
 import pyaudio
@@ -13,15 +14,15 @@ import os
 AUDIO_FORMAT = pyaudio.paFloat32
 # Use only one channel
 NUM_CHANNELS = 1
+# What to display when the pitch is unable to be computed
+INVALID_STR = 'Invalid'
 
 # Create an enumeration for the audio effects where each value corresponds to a string
 class AudioEffect:
     NO_EFFECT = 'No Effect'
-    REVERSE = 'Reverse'
     PITCH_SHIFT_UP = 'Pitch Shift Up'
     PITCH_SHIFT_DOWN = 'Pitch Shift Down'
-    REVERB = 'Reverb - TBD'
-    CRUNCH = 'Crunch - TBD'
+    SQUARE = 'Square'
 
 # Sample meaning:
 # Each sample is a 16-bit signed integer, that tells the speaker how far to move
@@ -56,7 +57,7 @@ def freqToNote(freqHz: float) -> tuple[str, float]:
    
     # Make sure freqHz is valid before running
     if freqHz <= 0:
-        return 'Invalid', 0
+        return INVALID_STR, 0
     note_number = num_semitones * math.log2(freqHz / freq_hz_of_a4) + note_num_of_a4  
 
     # Figure out which note and octave we are closest to 
@@ -172,7 +173,7 @@ class AudioIO():
             # Create a buffer that is 8 times as large as each frame that is 
             # read. This is the maximum size that aubio will accept. It creates
             # the smoothest pitch detection.
-            buffer_size = framesPerBuffer * 8
+            buffer_size = framesPerBuffer * 2
             self.pitchDetector = aubio.pitch('default', buffer_size, \
                 framesPerBuffer, samplingRateHz)
             self.pitchDetector.set_unit('Hz')
@@ -208,11 +209,20 @@ class AudioIO():
         # Convert audio data to numpy array
         audio_data = np.frombuffer(inData, dtype=np.float32)
 
-        
+        # Get the pitch of the audio data up front before manipulations
+        pitch = self.pitchDetector(audio_data)[0]
+        note_name, offset = freqToNote(pitch)
+        offset_str = createPitchOffsetStr(note_name, offset)
+
+        if len(self.recentFrameBuffer) > 0:
+            prev_last_frame = self.recentFrameBuffer[-1]
+            prev_last_frame_going_up = self.recentFrameBuffer[-1] > self.recentFrameBuffer[-2]
+        else:
+            prev_last_frame = 0
+            prev_last_frame_going_up = True
+
         # Apply the audio effect
-        if effectStr == AudioEffect.REVERSE:
-            audio_data = audio_data[::-1]
-        elif effectStr == AudioEffect.PITCH_SHIFT_UP:
+        if effectStr == AudioEffect.PITCH_SHIFT_UP:
             # First, get an array of every other sample the duplicate the array to 
             # make it the length of the original audio data
             every_other_sample = audio_data[::2]
@@ -223,15 +233,52 @@ class AudioIO():
             # to make the array the length of the original audio data
             first_half = audio_data[:len(audio_data) // 2]
             audio_data = np.concatenate((first_half, first_half), axis=0)
+        elif effectStr == AudioEffect.SQUARE:
+
+            if pitch == 0:
+                # If the pitch is 0, then we can't generate a sawtooth wave
+                # so we just return the audio data as is
+                audio_data = np.zeros_like(audio_data)
+                return (INVALID_STR, inData, pyaudio.paContinue)
+            
+            # TBD replace with dynamic sampling rate
+            # Make it twice as long as the audio data so we have a buffer to 
+            # crop later on
+            duration = (audio_data.shape[0] * 2) / 44100
+            t = np.linspace(0, duration, audio_data.shape[0] * 2, endpoint=False)
+            effect_wave = square(2 * np.pi * pitch * t, 0.5)
+
+            # Use the amplitude of the audio data to scale the square wave.
+            # The square wave has quite a bit more prescence than the audio data
+            # so we scale it down by a factor
+            scale_factor = 0.1
+            scaled_min = audio_data.min() * scale_factor
+            scaled_max = audio_data.max() * scale_factor
+            effect_wave = np.interp(effect_wave, (-1, 1), (scaled_min, scaled_max))
+
+            # Convert to 32 bit floats
+            effect_wave = np.array(effect_wave, dtype=np.float32)
+
+            # Find the index in the first half of the square wave that is 
+            # closest to the last frame of the audio data and is also going
+            # in the same direction as the last frame of the audio data
+            min_diff = np.inf
+            min_diff_idx = 0
+            for i in range(len(effect_wave) // 2):
+                going_up = effect_wave[i] > effect_wave[i-1]
+                diff = abs(effect_wave[i] - prev_last_frame)
+
+                if diff < min_diff and going_up == prev_last_frame_going_up:
+                    min_diff = diff
+                    min_diff_idx = i
+            
+            # Crop the square wave to start at the min_diff_idx and end at
+            # the length of the audio_data
+            audio_data = effect_wave[min_diff_idx:min_diff_idx + len(audio_data)]
         else:
             pass
 
-        # Get the pitch of the audio data
-        # TBD - moving the pitch detection to after the effect is applied to
-        #       to see if we are really shifting pitch
-        pitch = self.pitchDetector(audio_data)[0]
-        note_name, offset = freqToNote(pitch)
-        offset_str = createPitchOffsetStr(note_name, offset)
+        
 
         self.recentFrameBuffer.extend(audio_data)
 

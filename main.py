@@ -6,7 +6,6 @@ from audio_app import AudioApp
 import sys
 
 # TBDS:
-# - Add volume knob
 # - Move time_since_last_tremelo out of global variable
 # - Massive reafactor to make this easier to follow
 # - It might be useful at some point to see get_input_latency() and 

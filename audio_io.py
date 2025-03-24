@@ -30,6 +30,7 @@ class EffectSettings:
         # Default effect settings
         self.tremelo_frame_length = 4096
         self.tremelo_frames_to_scale = 10
+        self.tremelo_depth = 0.5
         self.crunch_threshold = 0.3
         self.crunch_gain = 20
         self.volume_level = 1.0
@@ -266,18 +267,19 @@ class AudioIO():
 
             frame_length = effectSettings.tremelo_frame_length
             frames_to_scale = effectSettings.tremelo_frames_to_scale
+            depth = effectSettings.tremelo_depth
 
             # Set samples to 0 if we should be dropping the sample to create a 
             # tremelo effect. IF we are coming in or going out of the samples
             # that we drop then we scale the samples to create a smooth effect
             for i in range(len(effect_data)):
                 if time_since_last_tremelo < 0:
-                    effect_data[i] = 0
+                    effect_data[i] = audio_data[i] * depth
                 elif time_since_last_tremelo < frames_to_scale:
-                    effect_data[i] = audio_data[i] * (time_since_last_tremelo / frames_to_scale)
+                    effect_data[i] = audio_data[i] * (depth + ((time_since_last_tremelo / frames_to_scale)* depth))
                 elif time_since_last_tremelo > (frame_length - frames_to_scale):
                     effect_data[i] = audio_data[i] * \
-                        ((frame_length - time_since_last_tremelo) / frames_to_scale)
+                        (depth + (((frame_length - time_since_last_tremelo) / frames_to_scale)*depth))
                 else:
                     effect_data[i] = audio_data[i]
                 time_since_last_tremelo += 1

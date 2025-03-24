@@ -161,6 +161,7 @@ class AudioApp(QWidget):
         tremelo_layout.addWidget(tremelo_label)
         self.tremeloSpinBox = QSpinBox()
         self.tremeloSpinBox.setRange(1024, 10240)
+        self.tremeloSpinBox.setSingleStep(1024)
         self.tremeloSpinBox.setValue(self.effectSettings.tremelo_frame_length)
         tremelo_layout.addWidget(self.tremeloSpinBox)
         tremelo_vbox_combo.addLayout(tremelo_layout)
@@ -173,6 +174,16 @@ class AudioApp(QWidget):
         self.tremeloScaleSpinBox.setValue(self.effectSettings.tremelo_frames_to_scale)
         tremelo_scale_layout.addWidget(self.tremeloScaleSpinBox)
         tremelo_vbox_combo.addLayout(tremelo_scale_layout)
+        # Tremelo depth setting
+        tremelo_depth_layout = QHBoxLayout()
+        tremelo_depth_label = QLabel("Depth")
+        tremelo_depth_layout.addWidget(tremelo_depth_label)
+        self.tremeloDepthSpinBox = QDoubleSpinBox()
+        self.tremeloDepthSpinBox.setRange(0.0, 1.0)
+        self.tremeloDepthSpinBox.setSingleStep(0.1)
+        self.tremeloDepthSpinBox.setValue(self.effectSettings.tremelo_depth)
+        tremelo_depth_layout.addWidget(self.tremeloDepthSpinBox)
+        tremelo_vbox_combo.addLayout(tremelo_depth_layout)
         # Add the Tremelo settings to the main layout
         hbox_bottom.addLayout(tremelo_vbox_combo)
 
@@ -205,6 +216,7 @@ class AudioApp(QWidget):
         self.effectSettings.crunch_threshold = self.threshSpinBox.value()
         self.effectSettings.tremelo_frame_length = self.tremeloSpinBox.value()
         self.effectSettings.tremelo_frames_to_scale = self.tremeloScaleSpinBox.value()
+        self.effectSettings.tremelo_depth = self.tremeloDepthSpinBox.value()
         self.effectSettings.volume_level = self.volumeSpinBox.value()
 
         offset_str, in_data, status = \

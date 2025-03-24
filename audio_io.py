@@ -218,6 +218,131 @@ class AudioIO():
             self.outputStream.stop_stream()
             self.outputStream.close()
 
+    def applyCrunchEffect(self, audioData, crunchThreshold, crunchGain):
+        '''
+        Apply a crunch effect to the audio data
+
+        Args:
+            audioData: The audio data to apply the effect to
+            crunchThreshold: The threshold to clip the audio data at
+            crunchGain: The gain to apply to the audio data
+
+        Returns:
+            The audio data with the crunch effect applied
+        '''
+        # Apply gain
+        crunch_gain = float(crunchGain)
+        effect_data = audioData * crunch_gain
+
+        # Clip audio to simulate distortion (crunchy effect)
+        effect_data = np.clip(effect_data, -crunchThreshold, \
+                                crunchThreshold)
+
+        # Normalize back to original range
+        effect_data = effect_data / crunch_gain
+
+        return  np.array(effect_data, dtype=np.float32)
+    
+    def applyTremoloEffect(self, audioData, frameLength, framesToScale, depth):
+        '''
+        Apply a tremolo effect to the audio data
+
+        Args:
+            audioData: The audio data to apply the effect to
+            frameLength: The length of the tremolo frame
+            framesToScale: The number of frames to scale the audio data
+            depth: The depth of the tremolo effect
+
+        Returns:
+            The audio data with the tremolo effect applied
+        '''
+        effect_data = audioData.copy()
+
+        # Set samples to 0 if we should be dropping the sample to create a 
+        # tremelo effect. IF we are coming in or going out of the samples
+        # that we drop then we scale the samples to create a smooth effect
+        for i in range(len(effect_data)):
+            if self.timeSinceLastTremelo < 0:
+                effect_data[i] = audioData[i] * depth
+            elif self.timeSinceLastTremelo < framesToScale:
+                effect_data[i] = audioData[i] * \
+                (depth + ((self.timeSinceLastTremelo / framesToScale)* depth))
+            elif self.timeSinceLastTremelo > (frameLength - framesToScale):
+                effect_data[i] = audioData[i] * \
+                    (depth + (((frameLength - self.timeSinceLastTremelo) \
+                        / framesToScale)*depth))
+            else:
+                effect_data[i] = audioData[i]
+            self.timeSinceLastTremelo += 1
+
+            # Reset the time since last tremelo if it is greater than the frame length
+            if self.timeSinceLastTremelo >= frameLength:
+                self.timeSinceLastTremelo = -1 * frameLength
+            
+        return np.array(effect_data, dtype=np.float32)
+    
+    def applySquareEffect(self, audioData, pitch):
+        '''
+        Apply a square wave effect to the audio data
+        
+        Args:
+            audioData: The audio data to apply the effect to
+            pitch: The pitch of the audio data
+
+        Returns:
+            The audio data with the square wave effect applied
+        '''
+
+        # Compute the direction of the last frame of audio data
+        if len(self.recentFrameBuffer) > 0:
+            prev_last_frame = self.recentFrameBuffer[-1]
+            prev_last_frame_going_up = self.recentFrameBuffer[-1] > self.recentFrameBuffer[-2]
+        else:
+            prev_last_frame = 0
+            prev_last_frame_going_up = True
+
+        if pitch == 0:
+            # If the pitch is 0, then we can't generate a sawtooth wave
+            # so we just return the audio data as is
+            audio_data = np.zeros_like(audioData)
+            return audio_data
+        
+        # Make it twice as long as the audio data so we have a buffer to 
+        # crop later on
+        duration = (audioData.shape[0] * 2) / self.samplingRateHz
+        t = np.linspace(0, duration, audioData.shape[0] * 2, endpoint=False)
+        effect_wave = square(2 * np.pi * pitch * t, 0.5)
+
+        # Use the amplitude of the audio data to scale the square wave.
+        # The square wave has quite a bit more prescence than the audio data
+        # so we scale it down by a factor
+        scale_factor = 0.1
+        scaled_min = audioData.min() * scale_factor
+        scaled_max = audioData.max() * scale_factor
+        effect_wave = np.interp(effect_wave, (-1, 1), (scaled_min, scaled_max))
+
+        # Convert to 32 bit floats
+        effect_wave = np.array(effect_wave, dtype=np.float32)
+
+        # Find the index in the first half of the square wave that is 
+        # closest to the last frame of the audio data and is also going
+        # in the same direction as the last frame of the audio data
+        min_diff = np.inf
+        min_diff_idx = 0
+        end_idx = (len(effect_wave) // 2) - 1
+        for i in range(end_idx):
+            going_up = effect_wave[i] > effect_wave[i-1]
+            diff = abs(effect_wave[i] - prev_last_frame)
+
+            if diff < min_diff and going_up == prev_last_frame_going_up:
+                min_diff = diff
+                min_diff_idx = i
+        
+        # Crop the square wave to start at the min_diff_idx and end at
+        # the length of the audio_data
+        start_idx = min_diff_idx + 1
+        return effect_wave[start_idx:start_idx + len(audioData)]
+    
     def streamCallback(self, inData, frameCount, timeInfo, status, effectStr,
                        effectSettings) -> tuple[str, bytes, int]:
         '''
@@ -238,109 +363,24 @@ class AudioIO():
         note_name, offset = freqToNote(pitch)
         offset_str = createPitchOffsetStr(note_name, offset)
 
-        if len(self.recentFrameBuffer) > 0:
-            prev_last_frame = self.recentFrameBuffer[-1]
-            prev_last_frame_going_up = self.recentFrameBuffer[-1] > self.recentFrameBuffer[-2]
-        else:
-            prev_last_frame = 0
-            prev_last_frame_going_up = True
-
         # Apply the audio effect
         if effectStr == AudioEffect.CRUNCH:
-            # Apply gain
-            crunch_gain = float(effectSettings.crunch_gain)
-            effect_data = audio_data * crunch_gain
-
-            # Clip audio to simulate distortion (crunchy effect)
-            effect_data = np.clip(effect_data, -effectSettings.crunch_threshold, \
-                                  effectSettings.crunch_threshold)
-
-            # Normalize back to original range
-            effect_data = effect_data / crunch_gain
-
-            audio_data = np.array(effect_data, dtype=np.float32)
-            
+            audio_data = self.applyCrunchEffect(audio_data, \
+                    effectSettings.crunch_threshold, \
+                    effectSettings.crunch_gain)            
         elif effectStr == AudioEffect.TREMOLO:
-
-            effect_data = audio_data.copy()
-
-            frame_length = effectSettings.tremelo_frame_length
-            frames_to_scale = effectSettings.tremelo_frames_to_scale
-            depth = effectSettings.tremelo_depth
-
-            # Set samples to 0 if we should be dropping the sample to create a 
-            # tremelo effect. IF we are coming in or going out of the samples
-            # that we drop then we scale the samples to create a smooth effect
-            for i in range(len(effect_data)):
-                if self.timeSinceLastTremelo < 0:
-                    effect_data[i] = audio_data[i] * depth
-                elif self.timeSinceLastTremelo < frames_to_scale:
-                    effect_data[i] = audio_data[i] * \
-                    (depth + ((self.timeSinceLastTremelo / frames_to_scale)* depth))
-                elif self.timeSinceLastTremelo > (frame_length - frames_to_scale):
-                    effect_data[i] = audio_data[i] * \
-                        (depth + (((frame_length - self.timeSinceLastTremelo) \
-                            / frames_to_scale)*depth))
-                else:
-                    effect_data[i] = audio_data[i]
-                self.timeSinceLastTremelo += 1
-
-                # Reset the time since last tremelo if it is greater than the frame length
-                if self.timeSinceLastTremelo >= frame_length:
-                    self.timeSinceLastTremelo = -1 * frame_length
-                
-            audio_data = np.array(effect_data, dtype=np.float32)
+            audio_data = self.applyTremoloEffect(audio_data, \
+                    effectSettings.tremelo_frame_length, \
+                    effectSettings.tremelo_frames_to_scale, \
+                    effectSettings.tremelo_depth)
 
         elif effectStr == AudioEffect.SQUARE:
+            audio_data = self.applySquareEffect(audio_data, pitch)
 
-            if pitch == 0:
-                # If the pitch is 0, then we can't generate a sawtooth wave
-                # so we just return the audio data as is
-                audio_data = np.zeros_like(audio_data)
-                return (INVALID_STR, inData, pyaudio.paContinue)
-            
-            # Make it twice as long as the audio data so we have a buffer to 
-            # crop later on
-            duration = (audio_data.shape[0] * 2) / self.samplingRateHz
-            t = np.linspace(0, duration, audio_data.shape[0] * 2, endpoint=False)
-            effect_wave = square(2 * np.pi * pitch * t, 0.5)
-
-            # Use the amplitude of the audio data to scale the square wave.
-            # The square wave has quite a bit more prescence than the audio data
-            # so we scale it down by a factor
-            scale_factor = 0.1
-            scaled_min = audio_data.min() * scale_factor
-            scaled_max = audio_data.max() * scale_factor
-            effect_wave = np.interp(effect_wave, (-1, 1), (scaled_min, scaled_max))
-
-            # Convert to 32 bit floats
-            effect_wave = np.array(effect_wave, dtype=np.float32)
-
-            # Find the index in the first half of the square wave that is 
-            # closest to the last frame of the audio data and is also going
-            # in the same direction as the last frame of the audio data
-            min_diff = np.inf
-            min_diff_idx = 0
-            end_idx = (len(effect_wave) // 2) - 1
-            for i in range(end_idx):
-                going_up = effect_wave[i] > effect_wave[i-1]
-                diff = abs(effect_wave[i] - prev_last_frame)
-
-                if diff < min_diff and going_up == prev_last_frame_going_up:
-                    min_diff = diff
-                    min_diff_idx = i
-            
-            # Crop the square wave to start at the min_diff_idx and end at
-            # the length of the audio_data
-            start_idx = min_diff_idx + 1
-            audio_data = effect_wave[start_idx:start_idx + len(audio_data)]
-        else:
-            pass
-
-        
         # Apply any volume manipulations
         audio_data = audio_data * effectSettings.volume_level
 
+        # Save the audio data to the recent frame buffer
         self.recentFrameBuffer.extend(audio_data)
 
         # Convert audio data back to bytes
@@ -373,6 +413,7 @@ class AudioIO():
             default_input_device_index = 0
         return input_devices, default_input_device_index
     
+
     def getOutputDevices(self) -> tuple[list[str], int]:
         '''
         Get the list of output devices and the index of the default output device

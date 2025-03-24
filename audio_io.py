@@ -1,6 +1,7 @@
 '''
 Interfaces to PyAudio and Aubio to handle audio input, output, and manipulation.
 '''
+from scipy.signal import correlate
 from scipy.signal import square
 from collections import deque
 import numpy as np
@@ -17,12 +18,15 @@ NUM_CHANNELS = 1
 # What to display when the pitch is unable to be computed
 INVALID_STR = 'Invalid'
 
+# TBD handle this in a non-global variable
+phaser_count = 0
+
 # Create an enumeration for the audio effects where each value corresponds to a string
 class AudioEffect:
     NO_EFFECT = 'No Effect'
-    PITCH_SHIFT_UP = 'Pitch Shift Up'
-    PITCH_SHIFT_DOWN = 'Pitch Shift Down'
+    CRUNCH = 'Crunch'
     SQUARE = 'Square'
+    PHASING = 'Phasing'
 
 # Sample meaning:
 # Each sample is a 16-bit signed integer, that tells the speaker how far to move
@@ -222,17 +226,30 @@ class AudioIO():
             prev_last_frame_going_up = True
 
         # Apply the audio effect
-        if effectStr == AudioEffect.PITCH_SHIFT_UP:
-            # First, get an array of every other sample the duplicate the array to 
-            # make it the length of the original audio data
-            every_other_sample = audio_data[::2]
-            audio_data = np.concatenate(
-                (every_other_sample, every_other_sample), axis=0)
-        elif effectStr == AudioEffect.PITCH_SHIFT_DOWN:
-            # Get this first half of the audio data, then duplicate every sample
-            # to make the array the length of the original audio data
-            first_half = audio_data[:len(audio_data) // 2]
-            audio_data = np.concatenate((first_half, first_half), axis=0)
+        if effectStr == AudioEffect.CRUNCH:
+
+            # TBD Set these as parameters
+            threshold=0.3
+            gain=20.0
+
+            # Normalize audio to be in range [-1, 1]
+
+            # Apply gain
+            effect_data = audio_data * gain
+
+            # Clip audio to simulate distortion (crunchy effect)
+            effect_data = np.clip(effect_data, -threshold, threshold)
+
+            # Normalize back to original range
+            effect_data = effect_data / gain
+
+            audio_data = np.array(effect_data, dtype=np.float32)
+            
+        elif effectStr == AudioEffect.PHASING:
+            
+            # Smooth out the audio data by taking the average of every 2 samples
+            audio_data = (audio_data[::2] + audio_data[1::2]) / 2
+
         elif effectStr == AudioEffect.SQUARE:
 
             if pitch == 0:
@@ -264,7 +281,8 @@ class AudioIO():
             # in the same direction as the last frame of the audio data
             min_diff = np.inf
             min_diff_idx = 0
-            for i in range(len(effect_wave) // 2):
+            end_idx = (len(effect_wave) // 2) - 1
+            for i in range(end_idx):
                 going_up = effect_wave[i] > effect_wave[i-1]
                 diff = abs(effect_wave[i] - prev_last_frame)
 
@@ -274,7 +292,8 @@ class AudioIO():
             
             # Crop the square wave to start at the min_diff_idx and end at
             # the length of the audio_data
-            audio_data = effect_wave[min_diff_idx:min_diff_idx + len(audio_data)]
+            start_idx = min_diff_idx + 1
+            audio_data = effect_wave[start_idx:start_idx + len(audio_data)]
         else:
             pass
 

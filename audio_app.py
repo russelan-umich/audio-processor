@@ -14,6 +14,7 @@ class AudioApp(QWidget):
     def __init__(self):
         super().__init__()
         self.audioIO = aio.AudioIO()
+        self.effectSettings = aio.EffectSettings()
         self.initUI()
 
     def __del__(self):
@@ -99,21 +100,36 @@ class AudioApp(QWidget):
         hbox_button_row.addWidget(self.refreshButton)
         hbox_button_row.addWidget(self.plotButton)
 
-        # Add a selector for which effect to apply
-        audio_effects = self.audioIO.getAudioEffects()
-        self.appliedEffect = self.addComboBoxToHBox(hbox_button_row, \
-            'Effect:', audio_effects, default_index=0)
         
         vbox.addLayout(hbox_button_row)
 
-
-        ### Create the horizontal layout for the text display
-        #
+        # Create a horizontal layout for the effect tools
         #
         hbox_bottom = QHBoxLayout()
+
+        # Add a selector for which effect to apply
+        audio_effects = self.audioIO.getAudioEffects()
+        self.appliedEffect = self.addComboBoxToHBox(hbox_bottom, \
+            'Effect:', audio_effects, default_index=0)
+        
+        # Create the tuner display
+        tuner_vbox_combo = QVBoxLayout()
+        label = QLabel("Tuner")
+        tuner_vbox_combo.addWidget(label)
         self.textDisplay = QLabel(NOT_ACTIVE_STR)
         self.textDisplay.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hbox_bottom.addWidget(self.textDisplay)
+        tuner_vbox_combo.addWidget(self.textDisplay)
+        hbox_bottom.addLayout(tuner_vbox_combo)
+
+        # Add distortion settings
+        tuner_vbox_combo = QVBoxLayout()
+        label = QLabel("Crunch")
+        tuner_vbox_combo.addWidget(label)
+        self.textDisplay = QLabel(NOT_ACTIVE_STR)
+        self.textDisplay.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        tuner_vbox_combo.addWidget(self.textDisplay)
+        hbox_bottom.addLayout(tuner_vbox_combo)
+
         vbox.addLayout(hbox_bottom)
 
         self.setLayout(vbox)
@@ -128,7 +144,8 @@ class AudioApp(QWidget):
         '''
         offset_str, in_data, status = \
             self.audioIO.streamCallback(in_data, frame_count, time_info, status, 
-                                        self.appliedEffect.currentText())
+                                        self.appliedEffect.currentText(),
+                                        self.effectSettings)
         
         self.textDisplay.setText(offset_str)
         return (in_data, status)

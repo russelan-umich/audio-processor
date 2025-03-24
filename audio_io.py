@@ -25,14 +25,13 @@ class AudioEffect:
     SQUARE = 'Square'
     TREMOLO = 'Tremolo'
 
-
-# Tremolo settings
-# TBD replace with dynamics
-TREMELO_FRAME_LENGTH = 4096
-
-# Scale these many frames before and after the drop for tremelo effect so that
-# the effect is not too jarring
-FRAMES_TO_SCALE = 10
+class EffectSettings:
+    def __init__(self):
+        # Default effect settings
+        self.tremelo_frame_length = 4096
+        self.frames_to_scale = 10.0
+        self.crunch_threshold = 0.3
+        self.crunch_gain = 20.0
 
 # This value will have the range of -1 * TREMELO_FRAME_LENGTH to TREMELO_FRAME_LENGTH
 # It will be used to keep track of how many samples have been processed since the last
@@ -216,7 +215,8 @@ class AudioIO():
             self.outputStream.stop_stream()
             self.outputStream.close()
 
-    def streamCallback(self, inData, frameCount, timeInfo, status, effectStr):
+    def streamCallback(self, inData, frameCount, timeInfo, status, effectStr,
+                       effectSettings) -> tuple[str, bytes, int]:
         '''
         Callback function that is called by the PyAudio object when audio data is
         available to be processed. This function is called in a separate thread.
@@ -244,21 +244,15 @@ class AudioIO():
 
         # Apply the audio effect
         if effectStr == AudioEffect.CRUNCH:
-
-            # TBD Set these as parameters
-            threshold=0.3
-            gain=20.0
-
-            # Normalize audio to be in range [-1, 1]
-
             # Apply gain
-            effect_data = audio_data * gain
+            effect_data = audio_data * effectSettings.crunch_gain
 
             # Clip audio to simulate distortion (crunchy effect)
-            effect_data = np.clip(effect_data, -threshold, threshold)
+            effect_data = np.clip(effect_data, -effectSettings.crunch_threshold, \
+                                  effectSettings.crunch_threshold)
 
             # Normalize back to original range
-            effect_data = effect_data / gain
+            effect_data = effect_data / effectSettings.crunch_gain
 
             audio_data = np.array(effect_data, dtype=np.float32)
             
@@ -268,23 +262,27 @@ class AudioIO():
 
             effect_data = audio_data.copy()
 
+            frame_length = effectSettings.tremelo_frame_length
+            frames_to_scale = effectSettings.frames_to_scale
+
             # Set samples to 0 if we should be dropping the sample to create a 
             # tremelo effect. IF we are coming in or going out of the samples
             # that we drop then we scale the samples to create a smooth effect
             for i in range(len(effect_data)):
                 if time_since_last_tremelo < 0:
                     effect_data[i] = 0
-                elif time_since_last_tremelo < FRAMES_TO_SCALE:
-                    effect_data[i] = audio_data[i] * (time_since_last_tremelo / FRAMES_TO_SCALE)
-                elif time_since_last_tremelo > (TREMELO_FRAME_LENGTH - FRAMES_TO_SCALE):
-                    effect_data[i] = audio_data[i] * ((TREMELO_FRAME_LENGTH - time_since_last_tremelo) / FRAMES_TO_SCALE)
+                elif time_since_last_tremelo < frames_to_scale:
+                    effect_data[i] = audio_data[i] * (time_since_last_tremelo / frames_to_scale)
+                elif time_since_last_tremelo > (frame_length - frames_to_scale):
+                    effect_data[i] = audio_data[i] * \
+                        ((frame_length - time_since_last_tremelo) / frames_to_scale)
                 else:
                     effect_data[i] = audio_data[i]
                 time_since_last_tremelo += 1
 
                 # Reset the time since last tremelo if it is greater than the frame length
-                if time_since_last_tremelo >= TREMELO_FRAME_LENGTH:
-                    time_since_last_tremelo = -1 * TREMELO_FRAME_LENGTH
+                if time_since_last_tremelo >= frame_length:
+                    time_since_last_tremelo = -1 * frame_length
                 
             audio_data = np.array(effect_data, dtype=np.float32)
 
@@ -296,7 +294,6 @@ class AudioIO():
                 audio_data = np.zeros_like(audio_data)
                 return (INVALID_STR, inData, pyaudio.paContinue)
             
-            # TBD replace with dynamic sampling rate
             # Make it twice as long as the audio data so we have a buffer to 
             # crop later on
             duration = (audio_data.shape[0] * 2) / self.samplingRateHz

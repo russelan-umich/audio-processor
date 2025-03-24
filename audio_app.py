@@ -2,11 +2,12 @@
 GUI application that allows the user to select an input and output device, and
 then start and stop recording audio from the input device.
 '''
+from PyQt6.QtWidgets import QLabel, QComboBox, QPushButton, QSpinBox, QDoubleSpinBox
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
-from PyQt6.QtWidgets import QLabel, QComboBox, QPushButton
 import matplotlib.pyplot as plt
 from PyQt6.QtCore import Qt
 import audio_io as aio
+
 
 NOT_ACTIVE_STR = '-- Recording not active --'
 
@@ -121,14 +122,58 @@ class AudioApp(QWidget):
         tuner_vbox_combo.addWidget(self.textDisplay)
         hbox_bottom.addLayout(tuner_vbox_combo)
 
-        # Add distortion settings
-        tuner_vbox_combo = QVBoxLayout()
+        # Add Crunch settings
+        #
+        crunch_vbox_combo = QVBoxLayout()
         label = QLabel("Crunch")
-        tuner_vbox_combo.addWidget(label)
-        self.textDisplay = QLabel(NOT_ACTIVE_STR)
-        self.textDisplay.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        tuner_vbox_combo.addWidget(self.textDisplay)
-        hbox_bottom.addLayout(tuner_vbox_combo)
+        crunch_vbox_combo.addWidget(label)
+        # Gain Setting
+        gain_layout = QHBoxLayout()
+        gain_label = QLabel("Gain")
+        gain_layout.addWidget(gain_label)
+        self.gainSpinBox = QSpinBox()
+        self.gainSpinBox.setRange(0, 50)
+        self.gainSpinBox.setValue(self.effectSettings.crunch_gain)
+        gain_layout.addWidget(self.gainSpinBox)
+        crunch_vbox_combo.addLayout(gain_layout)
+        # Threshold Setting
+        thresh_layout = QHBoxLayout()
+        thresh_label = QLabel("Threshold")
+        thresh_layout.addWidget(thresh_label)
+        self.threshSpinBox = QDoubleSpinBox()
+        self.threshSpinBox.setRange(0.0, 1.0)
+        self.threshSpinBox.setSingleStep(0.1)
+        self.threshSpinBox.setValue(self.effectSettings.crunch_threshold)
+        thresh_layout.addWidget(self.threshSpinBox)
+        crunch_vbox_combo.addLayout(thresh_layout)
+        # Add the Crunch settings to the main layout
+        hbox_bottom.addLayout(crunch_vbox_combo)
+
+        # Add Tremelo settings
+        #
+        tremelo_vbox_combo = QVBoxLayout()
+        label = QLabel("Tremelo")
+        tremelo_vbox_combo.addWidget(label) 
+        # Tremelo Frame Length
+        tremelo_layout = QHBoxLayout()
+        tremelo_label = QLabel("Frame Length")
+        tremelo_layout.addWidget(tremelo_label)
+        self.tremeloSpinBox = QSpinBox()
+        self.tremeloSpinBox.setRange(1024, 10240)
+        self.tremeloSpinBox.setValue(self.effectSettings.tremelo_frame_length)
+        tremelo_layout.addWidget(self.tremeloSpinBox)
+        tremelo_vbox_combo.addLayout(tremelo_layout)
+        # Tremelo Frame to scale
+        tremelo_scale_layout = QHBoxLayout()
+        tremelo_scale_label = QLabel("Frame to Scale")  
+        tremelo_scale_layout.addWidget(tremelo_scale_label)
+        self.tremeloScaleSpinBox = QSpinBox()
+        self.tremeloScaleSpinBox.setRange(0, 64)
+        self.tremeloScaleSpinBox.setValue(self.effectSettings.tremelo_frames_to_scale)
+        tremelo_scale_layout.addWidget(self.tremeloScaleSpinBox)
+        tremelo_vbox_combo.addLayout(tremelo_scale_layout)
+        # Add the Tremelo settings to the main layout
+        hbox_bottom.addLayout(tremelo_vbox_combo)
 
         vbox.addLayout(hbox_bottom)
 
@@ -142,6 +187,11 @@ class AudioApp(QWidget):
         Callback function that is called by the PyAudio object when audio data is
         available to be processed. This function is called in a separate thread.
         '''
+        self.effectSettings.crunch_gain = self.gainSpinBox.value()
+        self.effectSettings.crunch_threshold = self.threshSpinBox.value()
+        self.effectSettings.tremelo_frame_length = self.tremeloSpinBox.value()
+        self.effectSettings.tremelo_frames_to_scale = self.tremeloScaleSpinBox.value()
+
         offset_str, in_data, status = \
             self.audioIO.streamCallback(in_data, frame_count, time_info, status, 
                                         self.appliedEffect.currentText(),

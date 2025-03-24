@@ -29,9 +29,9 @@ class EffectSettings:
     def __init__(self):
         # Default effect settings
         self.tremelo_frame_length = 4096
-        self.frames_to_scale = 10.0
+        self.tremelo_frames_to_scale = 10
         self.crunch_threshold = 0.3
-        self.crunch_gain = 20.0
+        self.crunch_gain = 20
 
 # This value will have the range of -1 * TREMELO_FRAME_LENGTH to TREMELO_FRAME_LENGTH
 # It will be used to keep track of how many samples have been processed since the last
@@ -245,14 +245,15 @@ class AudioIO():
         # Apply the audio effect
         if effectStr == AudioEffect.CRUNCH:
             # Apply gain
-            effect_data = audio_data * effectSettings.crunch_gain
+            crunch_gain = float(effectSettings.crunch_gain)
+            effect_data = audio_data * crunch_gain
 
             # Clip audio to simulate distortion (crunchy effect)
             effect_data = np.clip(effect_data, -effectSettings.crunch_threshold, \
                                   effectSettings.crunch_threshold)
 
             # Normalize back to original range
-            effect_data = effect_data / effectSettings.crunch_gain
+            effect_data = effect_data / crunch_gain
 
             audio_data = np.array(effect_data, dtype=np.float32)
             
@@ -263,7 +264,7 @@ class AudioIO():
             effect_data = audio_data.copy()
 
             frame_length = effectSettings.tremelo_frame_length
-            frames_to_scale = effectSettings.frames_to_scale
+            frames_to_scale = effectSettings.tremelo_frames_to_scale
 
             # Set samples to 0 if we should be dropping the sample to create a 
             # tremelo effect. IF we are coming in or going out of the samples

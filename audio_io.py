@@ -186,6 +186,9 @@ class AudioIO():
         except OSError as e:
             return False, f'Error opening input stream: {e}'
         
+        # Save the sampling rate in Hz
+        self.samplingRateHz = samplingRateHz
+        
         # Create aubio pitch detection object
         try:
             # Create a buffer that is 8 times as large as each frame that is 
@@ -296,7 +299,7 @@ class AudioIO():
             # TBD replace with dynamic sampling rate
             # Make it twice as long as the audio data so we have a buffer to 
             # crop later on
-            duration = (audio_data.shape[0] * 2) / 44100
+            duration = (audio_data.shape[0] * 2) / self.samplingRateHz
             t = np.linspace(0, duration, audio_data.shape[0] * 2, endpoint=False)
             effect_wave = square(2 * np.pi * pitch * t, 0.5)
 

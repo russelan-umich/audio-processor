@@ -18,15 +18,29 @@ NUM_CHANNELS = 1
 # What to display when the pitch is unable to be computed
 INVALID_STR = 'Invalid'
 
-# TBD handle this in a non-global variable
-phaser_count = 0
-
 # Create an enumeration for the audio effects where each value corresponds to a string
 class AudioEffect:
     NO_EFFECT = 'No Effect'
     CRUNCH = 'Crunch'
     SQUARE = 'Square'
-    PHASING = 'Phasing'
+    TREMOLO = 'Tremolo'
+
+
+# Tremolo settings
+# TBD replace with dynamics
+TREMELO_FRAME_LENGTH = 4096
+
+# Scale these many frames before and after the drop for tremelo effect so that
+# the effect is not too jarring
+FRAMES_TO_SCALE = 10
+
+# This value will have the range of -1 * TREMELO_FRAME_LENGTH to TREMELO_FRAME_LENGTH
+# It will be used to keep track of how many samples have been processed since the last
+# tremelo effect. If the value is less than TREMELO_FRAME_LENGTH, then the effect will
+# be applied. If the value is greater than TREMELO_FRAME_LENGTH, then the effect will
+# not be applied.
+time_since_last_tremelo = 0
+
 
 # Sample meaning:
 # Each sample is a 16-bit signed integer, that tells the speaker how far to move
@@ -245,10 +259,31 @@ class AudioIO():
 
             audio_data = np.array(effect_data, dtype=np.float32)
             
-        elif effectStr == AudioEffect.PHASING:
-            
-            # Smooth out the audio data by taking the average of every 2 samples
-            audio_data = (audio_data[::2] + audio_data[1::2]) / 2
+        elif effectStr == AudioEffect.TREMOLO:
+
+            global time_since_last_tremelo
+
+            effect_data = audio_data.copy()
+
+            # Set samples to 0 if we should be dropping the sample to create a 
+            # tremelo effect. IF we are coming in or going out of the samples
+            # that we drop then we scale the samples to create a smooth effect
+            for i in range(len(effect_data)):
+                if time_since_last_tremelo < 0:
+                    effect_data[i] = 0
+                elif time_since_last_tremelo < FRAMES_TO_SCALE:
+                    effect_data[i] = audio_data[i] * (time_since_last_tremelo / FRAMES_TO_SCALE)
+                elif time_since_last_tremelo > (TREMELO_FRAME_LENGTH - FRAMES_TO_SCALE):
+                    effect_data[i] = audio_data[i] * ((TREMELO_FRAME_LENGTH - time_since_last_tremelo) / FRAMES_TO_SCALE)
+                else:
+                    effect_data[i] = audio_data[i]
+                time_since_last_tremelo += 1
+
+                # Reset the time since last tremelo if it is greater than the frame length
+                if time_since_last_tremelo >= TREMELO_FRAME_LENGTH:
+                    time_since_last_tremelo = -1 * TREMELO_FRAME_LENGTH
+                
+            audio_data = np.array(effect_data, dtype=np.float32)
 
         elif effectStr == AudioEffect.SQUARE:
 

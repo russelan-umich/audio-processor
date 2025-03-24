@@ -8,6 +8,7 @@ import sys
 # TBDS:
 # - Add volume knob
 # - Get access to sample rate inside audio_io
+# - Tremelo effect dynamics
 # - should I go one sample after the matching point instead of the exact matching point?
 # - Use distortion pedal to see what is looks like
 # - It might be useful at some point to see get_input_latency() and 

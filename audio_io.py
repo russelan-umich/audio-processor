@@ -29,18 +29,11 @@ class EffectSettings:
     def __init__(self):
         # Default effect settings
         self.tremelo_frame_length = 4096
-        self.tremelo_frames_to_scale = 10
+        self.tremelo_frames_to_scale = 40
         self.tremelo_depth = 0.5
         self.crunch_threshold = 0.3
         self.crunch_gain = 20
         self.volume_level = 1.0
-
-# This value will have the range of -1 * TREMELO_FRAME_LENGTH to TREMELO_FRAME_LENGTH
-# It will be used to keep track of how many samples have been processed since the last
-# tremelo effect. If the value is less than TREMELO_FRAME_LENGTH, then the effect will
-# be applied. If the value is greater than TREMELO_FRAME_LENGTH, then the effect will
-# not be applied.
-time_since_last_tremelo = 0
 
 
 # Sample meaning:
@@ -118,6 +111,14 @@ class AudioIO():
         # Initialize PyAudio
         self.recentFrameBuffer = deque(maxlen=(1024 * 16))
         self.pa = pyaudio.PyAudio()
+
+        # This value will have the range of -1 * TREMELO_FRAME_LENGTH to 
+        # TREMELO_FRAME_LENGTH. It will be used to keep track of how many 
+        # samples have been processed since the last tremelo effect. If the 
+        # value is less than TREMELO_FRAME_LENGTH, then the effect will be 
+        # applied. If the value is greater than TREMELO_FRAME_LENGTH, then the 
+        # effect will not be applied.
+        self.timeSinceLastTremelo = 0
 
     def __del__(self):
         self.pa.terminate()
@@ -261,8 +262,6 @@ class AudioIO():
             
         elif effectStr == AudioEffect.TREMOLO:
 
-            global time_since_last_tremelo
-
             effect_data = audio_data.copy()
 
             frame_length = effectSettings.tremelo_frame_length
@@ -273,20 +272,22 @@ class AudioIO():
             # tremelo effect. IF we are coming in or going out of the samples
             # that we drop then we scale the samples to create a smooth effect
             for i in range(len(effect_data)):
-                if time_since_last_tremelo < 0:
+                if self.timeSinceLastTremelo < 0:
                     effect_data[i] = audio_data[i] * depth
-                elif time_since_last_tremelo < frames_to_scale:
-                    effect_data[i] = audio_data[i] * (depth + ((time_since_last_tremelo / frames_to_scale)* depth))
-                elif time_since_last_tremelo > (frame_length - frames_to_scale):
+                elif self.timeSinceLastTremelo < frames_to_scale:
                     effect_data[i] = audio_data[i] * \
-                        (depth + (((frame_length - time_since_last_tremelo) / frames_to_scale)*depth))
+                    (depth + ((self.timeSinceLastTremelo / frames_to_scale)* depth))
+                elif self.timeSinceLastTremelo > (frame_length - frames_to_scale):
+                    effect_data[i] = audio_data[i] * \
+                        (depth + (((frame_length - self.timeSinceLastTremelo) \
+                            / frames_to_scale)*depth))
                 else:
                     effect_data[i] = audio_data[i]
-                time_since_last_tremelo += 1
+                self.timeSinceLastTremelo += 1
 
                 # Reset the time since last tremelo if it is greater than the frame length
-                if time_since_last_tremelo >= frame_length:
-                    time_since_last_tremelo = -1 * frame_length
+                if self.timeSinceLastTremelo >= frame_length:
+                    self.timeSinceLastTremelo = -1 * frame_length
                 
             audio_data = np.array(effect_data, dtype=np.float32)
 

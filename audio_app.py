@@ -101,17 +101,17 @@ class AudioApp(QWidget):
         hbox_button_row.addWidget(self.refreshButton)
         hbox_button_row.addWidget(self.plotButton)
 
+        # Add a selector for which effect to apply
+        audio_effects = self.audioIO.getAudioEffects()
+        self.appliedEffect = self.addComboBoxToHBox(hbox_button_row, \
+            'Effect:', audio_effects, default_index=0)
+
         
         vbox.addLayout(hbox_button_row)
 
         # Create a horizontal layout for the effect tools
         #
         hbox_bottom = QHBoxLayout()
-
-        # Add a selector for which effect to apply
-        audio_effects = self.audioIO.getAudioEffects()
-        self.appliedEffect = self.addComboBoxToHBox(hbox_bottom, \
-            'Effect:', audio_effects, default_index=0)
         
         # Create the tuner display
         tuner_vbox_combo = QVBoxLayout()
@@ -167,10 +167,11 @@ class AudioApp(QWidget):
         tremelo_vbox_combo.addLayout(tremelo_layout)
         # Tremelo Frame to scale
         tremelo_scale_layout = QHBoxLayout()
-        tremelo_scale_label = QLabel("Frame to Scale")  
+        tremelo_scale_label = QLabel("Frames to Scale")  
         tremelo_scale_layout.addWidget(tremelo_scale_label)
         self.tremeloScaleSpinBox = QSpinBox()
-        self.tremeloScaleSpinBox.setRange(0, 64)
+        self.tremeloScaleSpinBox.setRange(0, 100)
+        self.tremeloScaleSpinBox.setSingleStep(5)
         self.tremeloScaleSpinBox.setValue(self.effectSettings.tremelo_frames_to_scale)
         tremelo_scale_layout.addWidget(self.tremeloScaleSpinBox)
         tremelo_vbox_combo.addLayout(tremelo_scale_layout)

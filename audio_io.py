@@ -32,6 +32,7 @@ class EffectSettings:
         self.tremelo_frames_to_scale = 10
         self.crunch_threshold = 0.3
         self.crunch_gain = 20
+        self.volume_level = 1.0
 
 # This value will have the range of -1 * TREMELO_FRAME_LENGTH to TREMELO_FRAME_LENGTH
 # It will be used to keep track of how many samples have been processed since the last
@@ -334,6 +335,8 @@ class AudioIO():
             pass
 
         
+        # Apply any volume manipulations
+        audio_data = audio_data * effectSettings.volume_level
 
         self.recentFrameBuffer.extend(audio_data)
 

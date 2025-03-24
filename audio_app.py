@@ -133,6 +133,7 @@ class AudioApp(QWidget):
         gain_layout.addWidget(gain_label)
         self.gainSpinBox = QSpinBox()
         self.gainSpinBox.setRange(0, 50)
+        self.gainSpinBox.setSingleStep(5)
         self.gainSpinBox.setValue(self.effectSettings.crunch_gain)
         gain_layout.addWidget(self.gainSpinBox)
         crunch_vbox_combo.addLayout(gain_layout)
@@ -175,6 +176,19 @@ class AudioApp(QWidget):
         # Add the Tremelo settings to the main layout
         hbox_bottom.addLayout(tremelo_vbox_combo)
 
+        # Volume control
+        volume_vbox_combo = QVBoxLayout()
+        label = QLabel("Volume")
+        volume_vbox_combo.addWidget(label)
+        # Volume control
+        self.volumeSpinBox = QDoubleSpinBox()
+        self.volumeSpinBox.setRange(0.0, 2.0)
+        self.volumeSpinBox.setSingleStep(0.1)
+        self.volumeSpinBox.setValue(self.effectSettings.volume_level)
+        volume_vbox_combo.addWidget(self.volumeSpinBox)
+        # Add the Tremelo settings to the main layout
+        hbox_bottom.addLayout(volume_vbox_combo)
+
         vbox.addLayout(hbox_bottom)
 
         self.setLayout(vbox)
@@ -191,6 +205,7 @@ class AudioApp(QWidget):
         self.effectSettings.crunch_threshold = self.threshSpinBox.value()
         self.effectSettings.tremelo_frame_length = self.tremeloSpinBox.value()
         self.effectSettings.tremelo_frames_to_scale = self.tremeloScaleSpinBox.value()
+        self.effectSettings.volume_level = self.volumeSpinBox.value()
 
         offset_str, in_data, status = \
             self.audioIO.streamCallback(in_data, frame_count, time_info, status, 

@@ -290,6 +290,6 @@ class AudioApp(QWidget):
         '''
         Create a plot of the audio data
         '''
-        plt.plot(self.audioIO.recentFrameBuffer)
+        plt.plot(list(self.audioIO.recentFrameBuffer)[:7500])
         plt.xlabel('Frame Number')
         plt.show()

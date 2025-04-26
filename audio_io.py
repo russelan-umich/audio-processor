@@ -1,7 +1,6 @@
 '''
 Interfaces to PyAudio and Aubio to handle audio input, output, and manipulation.
 '''
-from scipy.signal import correlate
 from scipy.signal import square
 from collections import deque
 import numpy as np
@@ -22,8 +21,8 @@ INVALID_STR = 'Invalid'
 class AudioEffect:
     NO_EFFECT = 'No Effect'
     CRUNCH = 'Crunch'
-    SQUARE = 'Square'
     TREMOLO = 'Tremolo'
+    SQUARE = 'Square'
 
 class EffectSettings:
     def __init__(self):

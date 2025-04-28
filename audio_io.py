@@ -257,21 +257,31 @@ class AudioIO():
         '''
         effect_data = audioData.copy()
 
-        # Set samples to 0 if we should be dropping the sample to create a 
-        # tremelo effect. IF we are coming in or going out of the samples
-        # that we drop then we scale the samples to create a smooth effect
         for i in range(len(effect_data)):
+
+            # If we are in the quiet phase of the tremolo cycle, scale the 
+            # audio down by the depth
             if self.timeSinceLastTremelo < 0:
                 effect_data[i] = audioData[i] * depth
+
+            # If we are in the rising phase of the tremolo cycle, gradually 
+            # scale the audio up
             elif self.timeSinceLastTremelo < framesToScale:
                 effect_data[i] = audioData[i] * \
                 (depth + ((self.timeSinceLastTremelo / framesToScale)* depth))
+
+            # If we are in the falling phase of the tremolo cycle, gradually 
+            # scale the audio down
             elif self.timeSinceLastTremelo > (frameLength - framesToScale):
                 effect_data[i] = audioData[i] * \
                     (depth + (((frameLength - self.timeSinceLastTremelo) \
                         / framesToScale)*depth))
+                
+            # If we are in the steady phase of the tremolo cycle, keep the 
+            # audio unscaled
             else:
                 effect_data[i] = audioData[i]
+
             self.timeSinceLastTremelo += 1
 
             # Reset the time since last tremelo if it is greater than the frame length
@@ -301,7 +311,7 @@ class AudioIO():
             prev_last_frame_going_up = True
 
         if pitch == 0:
-            # If the pitch is 0, then we can't generate a sawtooth wave
+            # If the pitch is 0, then we can't generate a square wave
             # so we just return the audio data as is
             audio_data = np.zeros_like(audioData)
             return audio_data
@@ -315,7 +325,7 @@ class AudioIO():
         # Use the amplitude of the audio data to scale the square wave.
         # The square wave has quite a bit more prescence than the audio data
         # so we scale it down by a factor
-        scale_factor = 0.1
+        scale_factor = 0.3
         scaled_min = audioData.min() * scale_factor
         scaled_max = audioData.max() * scale_factor
         effect_wave = np.interp(effect_wave, (-1, 1), (scaled_min, scaled_max))

@@ -119,6 +119,8 @@ class AudioApp(QWidget):
         tuner_vbox_combo.addWidget(label)
         self.textDisplay = QLabel(NOT_ACTIVE_STR)
         self.textDisplay.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Make the text display a little larger
+        self.textDisplay.setStyleSheet("font-size: 20px;")
         tuner_vbox_combo.addWidget(self.textDisplay)
         hbox_bottom.addLayout(tuner_vbox_combo)
 
